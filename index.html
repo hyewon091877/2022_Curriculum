@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="p-4 sm:p-6">
-    <!-- Modal Container -->
     <div id="pdf-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <div class="flex justify-between items-center border-b pb-2">
@@ -20,7 +19,6 @@
         </div>
     </div>
 
-    <!-- File Upload Section -->
     <div id="upload-section" class="max-w-4xl mx-auto mb-8">
         <div class="bg-white rounded-box p-8 shadow-lg ring-1 ring-slate-900/5">
             <h2 class="text-2xl font-bold text-slate-800 mb-4 text-center">교육과정 문서 업로드</h2>
@@ -29,13 +27,11 @@
                 <span class="text-xs text-slate-500">PDF는 AI가 자동으로 분석합니다 (처리 시간 약 30초~1분)</span>
             </p>
             
-            <!-- Tab Selection -->
             <div class="flex justify-center gap-4 mb-6">
                 <button id="tab-upload" class="tab-button active">새 파일 업로드</button>
                 <button id="tab-saved" class="tab-button">저장된 교과 불러오기</button>
             </div>
-            
-            <!-- Upload Tab -->
+        
             <div id="upload-tab-content" class="tab-content">
                 <div class="flex flex-col items-center gap-4">
                     <input type="file" id="file-input" accept=".json,.pdf" class="block w-full text-sm text-slate-500
@@ -52,7 +48,6 @@
                     </div>
                 </div>
                 
-                <!-- Processing Indicator -->
                 <div id="processing-indicator" class="hidden mt-6 p-4 bg-blue-50 rounded-lg">
                     <div class="flex items-center justify-center gap-3">
                         <div class="spinner-small"></div>
@@ -64,7 +59,6 @@
                 </div>
             </div>
             
-            <!-- Saved Tab -->
             <div id="saved-tab-content" class="tab-content hidden">
                 <div id="saved-list" class="space-y-3">
                     <p class="text-center text-slate-500">저장된 교과가 없습니다</p>
@@ -73,78 +67,64 @@
         </div>
     </div>
 
-    <!-- Header Section -->
     <header id="main-header" class="mb-8 mt-4 hidden">
         <h1 class="text-xl sm:text-2xl font-extrabold text-slate-800 text-center flex flex-col sm:flex-row justify-center items-center gap-2">
             <span class="header-main-title">2022 개정 교육과정</span>
-            <span id="subject-badge" class="inline-block px-4 py-1 bg-white border-2 border-blue-400 text-blue-600 rounded-xl shadow-md text-2xl tracking-wide">과학과</span>
-            <span class="header-main-title">성취기준/성취수준 탐색기</span>
-            <span id="school-level-badge" class="header-badge">중학교</span>
+            <span id="subject-badge" class="header-sub-title">교과명</span>
+            <span id="school-level-badge" class="header-badge">학교급</span>
         </h1>
+        <p class="text-center text-slate-600 mt-2 font-medium">
+            <span id="pdf-source"></span>에서 추출된 성취기준입니다.
+        </p>
     </header>
-    
-    <!-- Main Content Area -->
-    <main id="main-content" class="flex flex-col lg:flex-row gap-6 max-w-[1400px] mx-auto hidden" style="height: calc(100vh - 140px);">
-        
-        <!-- Curriculum Tree (Left Pane) -->
-        <div id="tree-container" class="lg:w-1/4 w-full bg-white rounded-box flex flex-col shadow-lg ring-1 ring-slate-900/5">
-            <div class="p-4 bg-slate-100 border-b border-slate-200 rounded-t-box">
-                <h2 class="text-lg font-bold text-slate-700 flex items-center">
-                    <span class="mr-2">≡</span>교육과정 구성
-                </h2>
-            </div>
-            <div id="curriculum-tree" class="p-4 custom-scrollbar overflow-y-auto flex-1 space-y-2"></div>
-        </div>
-        
-        <!-- Detail Content (Right Pane) -->
-        <div id="detail-container" class="lg:w-3/4 w-full bg-white rounded-box flex flex-col shadow-lg ring-1 ring-slate-900/5">
-            <div class="p-4 bg-slate-100 border-b border-slate-200 rounded-t-box">
-                <div class="unit-header-wrapper">
-                    <div class="text-lg font-bold text-slate-700 flex items-center">
-                        <span class="mr-2 text-blue-600">#</span><span id="unit-title">단원을 선택해 주세요</span>
-                    </div>
-                    <div id="unit-actions" class="flex gap-2 justify-end items-center"></div>
+
+    <main id="main-content" class="max-w-[1400px] mx-auto hidden">
+        <div class="flex flex-col lg:flex-row gap-6">
+            
+            <div class="w-full lg:w-80 flex-shrink-0">
+                <div class="bg-white rounded-box p-6 sticky top-4 shadow-lg ring-1 ring-slate-900/5 h-auto lg:h-[calc(100vh-80px)] overflow-y-auto custom-scrollbar">
+                    <h2 class="text-xl font-bold text-slate-800 mb-4 border-b pb-2">교과 내용 구조</h2>
+                    <div id="curriculum-tree" class="space-y-1">
+                        </div>
                 </div>
             </div>
-            <div id="unit-content" class="p-6 custom-scrollbar overflow-y-auto flex-1">
+
+            <div class="flex-grow w-full" id="unit-content">
                 
-                <!-- Placeholder Message -->
-                <div id="placeholder-message" class="flex flex-col items-center justify-center h-full text-slate-400 space-y-4">
-                    <span class="text-8xl opacity-50 mb-4">📚</span>
-                    <p class="text-base text-center">
-                        왼쪽 목록에서 <span class="font-bold text-slate-500">단원명을 클릭</span>하거나<br>
-                        <span class="font-bold text-slate-500">참고 자료</span>를 확인하세요. <span class="text-2xl">🌐</span>
-                    </p>
+                <div id="placeholder-message" class="content-card p-12 text-center">
+                    <div class="spinner-large mx-auto mb-4 hidden" id="loading-spinner"></div>
+                    <p class="text-xl font-semibold text-slate-700 mb-2">왼쪽에서 단원을 선택해주세요</p>
+                    <p class="text-slate-500">선택된 단원의 성취기준, 탐구 활동, 해설, 고려사항이 여기에 표시됩니다.</p>
                 </div>
                 
-                <!-- Loading Spinner -->
-                <div id="loading-spinner" class="hidden flex justify-center items-center h-full">
-                    <div class="spinner"></div>
-                </div>
-                
-                <!-- Achievement/Criteria Content -->
                 <div id="achieve-content" class="hidden">
                     
-                    <!-- Box 1: 성취기준 + 탐구 활동 -->
-                    <div class="content-card">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="content-header-with-bar">성취기준</h3>
-                            <button id="copy-achievement-btn" class="copy-button" title="성취기준 복사">
-                                📋 복사
-                            </button>
-                        </div>
-                        <div class="content-body pt-0 pb-0">
-                            <ul id="achievement-list"></ul>
-                            
-                            <div id="activity-section" class="hidden">
-                                <div class="activity-separator"></div>
-                                <div class="activity-header">탐구 활동</div>
-                                <ul id="activity-list" class="pb-4"></ul>
+                    <div class="w-full bg-white rounded-box flex flex-col shadow-lg ring-1 ring-slate-900/5">
+                        <div class="p-4 bg-slate-100 border-b border-slate-200 rounded-t-box">
+                            <div class="unit-header-wrapper">
+                                <div class="text-lg font-bold text-slate-700 flex items-center">
+                                    <span class="mr-2 text-blue-600">#</span><span id="unit-title">단원명</span> 
+                                    <span id="current-domain-display" class="ml-2 text-sm font-normal text-slate-500"></span>
+                                </div>
+                                <div id="unit-actions" class="mt-2 flex flex-wrap gap-2 text-sm">
+                                    </div>
                             </div>
                         </div>
                     </div>
+
+                    <div class="content-card mt-6">
+                        <h3 class="content-header-with-bar mb-4">성취기준 목록</h3>
+                        <ul id="achievement-list" class="ml-2 space-y-2">
+                            </ul>
+                    </div>
                     
-                    <!-- Box 2: 성취기준 해설 -->
+                    <div id="activity-section" class="content-card">
+                        <div class="activity-separator"></div>
+                        <h3 class="activity-header">탐구 활동</h3>
+                        <ul id="activity-list" class="ml-2 space-y-2">
+                            </ul>
+                    </div>
+
                     <div class="content-card">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="content-header-with-bar">성취기준 해설</h3>
@@ -155,10 +135,9 @@
                         <div class="content-body" id="explanation-text"></div>
                     </div>
                     
-                    <!-- Box 3: 적용 시 고려 사항 -->
                     <div class="content-card">
                         <div class="flex justify-between items-center mb-4">
-                            <h3 class="content-header-with-bar">적용 시 고려 사항</h3>
+                            <h3 class="content-header-with-bar">교수·학습 및 평가 시 고려사항</h3>
                             <button id="copy-consideration-btn" class="copy-button" title="고려사항 복사">
                                 📋 복사
                             </button>
@@ -171,7 +150,6 @@
         </div>
     </main>
 
-    <!-- Footer Section -->
     <footer id="main-footer" class="mt-8 py-6 bg-slate-50 border-t border-slate-200 hidden">
         <div class="max-w-[1400px] mx-auto px-4">
             <h3 class="text-lg font-bold text-slate-700 mb-4 text-center">유용한 교육 사이트</h3>
@@ -190,7 +168,7 @@
                 </a>
                 <a href="https://www.ktbook.com/" target="_blank" 
                    class="footer-link-button">
-                    한국교과서연구재단
+                    한국교과서협회
                 </a>
             </div>
         </div>

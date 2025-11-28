@@ -2,6 +2,7 @@
 let curriculumData = null;
 let activeElement = null;
 let currentDomainName = null;
+const STORAGE_KEY = 'curriculum_explorer_saved_data';
 
 // DOM 요소
 const fileInput = document.getElementById('file-input');
@@ -23,30 +24,249 @@ const activitySection = document.getElementById('activity-section');
 const activityList = document.getElementById('activity-list');
 const explanationText = document.getElementById('explanation-text');
 const considerationText = document.getElementById('consideration-text');
+const processingIndicator = document.getElementById('processing-indicator');
+
+// Tab 요소
+const tabUpload = document.getElementById('tab-upload');
+const tabSaved = document.getElementById('tab-saved');
+const uploadTabContent = document.getElementById('upload-tab-content');
+const savedTabContent = document.getElementById('saved-tab-content');
+const savedList = document.getElementById('saved-list');
+
+// Tab 전환
+tabUpload.addEventListener('click', () => {
+    tabUpload.classList.add('active');
+    tabSaved.classList.remove('active');
+    uploadTabContent.classList.remove('hidden');
+    savedTabContent.classList.add('hidden');
+});
+
+tabSaved.addEventListener('click', () => {
+    tabSaved.classList.add('active');
+    tabUpload.classList.remove('active');
+    savedTabContent.classList.remove('hidden');
+    uploadTabContent.classList.add('hidden');
+    loadSavedList();
+});
 
 // 파일 업로드 이벤트
-fileInput.addEventListener('change', (e) => {
+fileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            try {
-                curriculumData = JSON.parse(event.target.result);
-                initializeApp();
-            } catch (error) {
-                alert('파일 형식이 올바르지 않습니다. JSON 파일을 업로드해주세요.');
-                console.error('JSON 파싱 오류:', error);
-            }
-        };
-        reader.readAsText(file);
+    if (!file) return;
+    
+    const fileType = file.name.split('.').pop().toLowerCase();
+    
+    if (fileType === 'json') {
+        handleJsonFile(file);
+    } else if (fileType === 'pdf') {
+        await handlePdfFile(file);
+    } else {
+        alert('JSON 또는 PDF 파일만 업로드 가능합니다.');
     }
 });
+
+// JSON 파일 처리
+function handleJsonFile(file) {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        try {
+            curriculumData = JSON.parse(event.target.result);
+            saveToStorage(curriculumData);
+            initializeApp();
+        } catch (error) {
+            alert('파일 형식이 올바르지 않습니다. JSON 파일을 업로드해주세요.');
+            console.error('JSON 파싱 오류:', error);
+        }
+    };
+    reader.readAsText(file);
+}
+
+// PDF 파일 처리 (Claude API 사용)
+async function handlePdfFile(file) {
+    processingIndicator.classList.remove('hidden');
+    
+    try {
+        // PDF를 base64로 변환
+        const base64Data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = () => reject(new Error('파일 읽기 실패'));
+            reader.readAsDataURL(file);
+        });
+        
+        // Claude API 호출
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 4000,
+                messages: [{
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'document',
+                            source: {
+                                type: 'base64',
+                                media_type: 'application/pdf',
+                                data: base64Data
+                            }
+                        },
+                        {
+                            type: 'text',
+                            text: `이 PDF는 교육과정 문서입니다. 다음 JSON 형식으로 정확히 추출해주세요. 추가 설명 없이 JSON만 반환하세요:
+
+{
+  "subject": "교과명 (예: 과학과, 수학과)",
+  "schoolLevel": "학교급 (초등학교/중학교/고등학교)",
+  "pdfFile": "원본파일명.pdf",
+  "units": {
+    "학년명": {
+      "단원명": {
+        "domain": "영역명",
+        "achievements": ["[코드] 성취기준 내용"],
+        "activities": ["탐구활동 내용"],
+        "explanation": "해설 전체 내용",
+        "consideration": "고려사항 전체 내용",
+        "pdfPages": {"achievement": 페이지번호, "domain": 페이지번호}
+      }
+    }
+  },
+  "references": []
+}
+
+중요: 
+- achievements, activities는 배열로
+- explanation, consideration는 전체 텍스트를 하나의 문자열로
+- 줄바꿈은 \\n으로 표현`
+                        }
+                    ]
+                }]
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.content && data.content[0] && data.content[0].text) {
+            let jsonText = data.content[0].text.trim();
+            
+            // JSON 마크다운 제거
+            jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+            
+            curriculumData = JSON.parse(jsonText);
+            curriculumData.pdfFile = file.name;
+            
+            saveToStorage(curriculumData);
+            initializeApp();
+            showToast('PDF가 성공적으로 분석되어 저장되었습니다! 🎉');
+        } else {
+            throw new Error('PDF 분석 실패');
+        }
+        
+    } catch (error) {
+        console.error('PDF 처리 오류:', error);
+        alert('PDF 분석 중 오류가 발생했습니다. JSON 파일을 직접 업로드해주세요.\n\n오류: ' + error.message);
+    } finally {
+        processingIndicator.classList.add('hidden');
+    }
+}
+
+// 로컬 스토리지에 저장
+function saveToStorage(data) {
+    try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        const key = `${data.subject}_${data.schoolLevel}`;
+        saved[key] = {
+            ...data,
+            savedAt: new Date().toISOString()
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+    } catch (error) {
+        console.error('저장 오류:', error);
+    }
+}
+
+// 저장된 목록 불러오기
+function loadSavedList() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        const items = Object.entries(saved);
+        
+        if (items.length === 0) {
+            savedList.innerHTML = '<p class="text-center text-slate-500">저장된 교과가 없습니다</p>';
+            return;
+        }
+        
+        savedList.innerHTML = items.map(([key, data]) => {
+            const date = new Date(data.savedAt);
+            const dateStr = date.toLocaleDateString('ko-KR', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            return `
+                <div class="saved-item-card" data-key="${key}">
+                    <div class="flex justify-between items-center">
+                        <div class="flex-1" onclick="loadSavedData('${key}')">
+                            <h3 class="font-bold text-lg text-slate-800">${data.subject}</h3>
+                            <p class="text-sm text-slate-600">${data.schoolLevel}</p>
+                            <p class="text-xs text-slate-400 mt-1">저장일: ${dateStr}</p>
+                        </div>
+                        <button class="delete-btn" onclick="deleteSavedData(event, '${key}')">삭제</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+    } catch (error) {
+        console.error('목록 로드 오류:', error);
+        savedList.innerHTML = '<p class="text-center text-red-500">목록을 불러올 수 없습니다</p>';
+    }
+}
+
+// 저장된 데이터 불러오기
+window.loadSavedData = function(key) {
+    try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        curriculumData = saved[key];
+        if (curriculumData) {
+            initializeApp();
+        }
+    } catch (error) {
+        console.error('데이터 로드 오류:', error);
+        alert('데이터를 불러올 수 없습니다.');
+    }
+};
+
+// 저장된 데이터 삭제
+window.deleteSavedData = function(event, key) {
+    event.stopPropagation();
+    
+    if (!confirm('정말 삭제하시겠습니까?')) return;
+    
+    try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        delete saved[key];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+        loadSavedList();
+        showToast('삭제되었습니다');
+    } catch (error) {
+        console.error('삭제 오류:', error);
+        alert('삭제 중 오류가 발생했습니다.');
+    }
+};
 
 // 과학과 샘플 데이터 불러오기
 loadScienceBtn.addEventListener('click', async () => {
     try {
         const response = await fetch('science_data.json');
         curriculumData = await response.json();
+        saveToStorage(curriculumData);
         initializeApp();
     } catch (error) {
         alert('샘플 데이터를 불러올 수 없습니다. science_data.json 파일을 확인해주세요.');
@@ -61,17 +281,14 @@ function initializeApp() {
         return;
     }
 
-    // UI 표시
     uploadSection.classList.add('hidden');
     mainHeader.classList.remove('hidden');
     mainContent.classList.remove('hidden');
     mainFooter.classList.remove('hidden');
 
-    // 헤더 정보 업데이트
     subjectBadge.textContent = curriculumData.subject;
     schoolLevelBadge.textContent = curriculumData.schoolLevel;
 
-    // 트리 렌더링
     renderCurriculumTree();
 }
 
@@ -80,13 +297,11 @@ function renderCurriculumTree() {
     curriculumTree.innerHTML = '';
     const units = curriculumData.units;
 
-    // 학년별 그룹화
     const groupedUnits = {};
     for (const [yearKey, yearData] of Object.entries(units)) {
         groupedUnits[yearKey] = yearData;
     }
 
-    // 각 학년 렌더링
     for (const [yearName, yearUnits] of Object.entries(groupedUnits)) {
         const yearContainer = document.createElement('div');
         yearContainer.className = 'mb-3';
@@ -98,7 +313,6 @@ function renderCurriculumTree() {
         const unitContainer = document.createElement('div');
         unitContainer.className = 'sub-group-container open space-y-0.5';
         
-        // 단원 렌더링
         Object.entries(yearUnits).forEach(([unitName, unitData], index) => {
             const unitItem = document.createElement('div');
             unitItem.className = 'sub-group-item';
@@ -116,7 +330,6 @@ function renderCurriculumTree() {
         curriculumTree.appendChild(yearContainer);
     }
 
-    // 참고 자료 섹션
     addReferenceSection();
 }
 
@@ -132,7 +345,6 @@ function addReferenceSection() {
     const refSubContainer = document.createElement('div');
     refSubContainer.className = 'sub-group-container open space-y-1';
     
-    // 참고 자료 링크들
     if (curriculumData.references) {
         curriculumData.references.forEach(ref => {
             const wrapper = createRefRow(ref.name, ref.url, ref.downloadName, ref.icon, ref.page);
@@ -224,7 +436,6 @@ function displayUnitContent(data, unitName, yearName) {
         unitTitleContainer.textContent = unitName;
         unitActionsContainer.innerHTML = '';
 
-        // PDF 버튼 추가
         if (data.pdfPages) {
             const achievementButton = document.createElement('button');
             achievementButton.textContent = '수준별 성취수준';
@@ -245,7 +456,6 @@ function displayUnitContent(data, unitName, yearName) {
             unitActionsContainer.appendChild(domainButton);
         }
 
-        // 성취기준 목록
         if (data.achievements && data.achievements.length > 0) {
             achievementList.innerHTML = data.achievements.map(item => `
                 <li class="content-list-item">
@@ -256,7 +466,6 @@ function displayUnitContent(data, unitName, yearName) {
             achievementList.innerHTML = `<li class="content-list-item" style="color: #64748b;">선택하신 단원에 대한 성취기준 데이터가 없습니다.</li>`;
         }
 
-        // 탐구 활동
         if (data.activities && data.activities.length > 0) {
             activitySection.classList.remove('hidden');
             activityList.innerHTML = data.activities.map(item => `
@@ -268,11 +477,9 @@ function displayUnitContent(data, unitName, yearName) {
             activitySection.classList.add('hidden');
         }
 
-        // 해설 및 고려사항
         explanationText.innerHTML = formatPdfText(data.explanation);
         considerationText.innerHTML = formatPdfText(data.consideration);
 
-        // 복사 버튼 이벤트 설정
         setupCopyButtons(data);
 
         document.getElementById('unit-content').scrollTo(0, 0);
